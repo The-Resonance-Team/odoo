@@ -14,7 +14,7 @@ Single-context layout: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/
 
 ## Toolchain
 
-This is a Bun-native repo (`packageManager: bun@1.4.6`): use `bun install`, `bun fmt`, `bun lint`, and `bun check`. Turborepo runs the workspace tasks.
+This is a Bun-native repo (`packageManager: bun@1.4.6-canary.1`): use `bun install`, `bun fmt`, `bun lint`, and `bun check`. Turborepo runs the workspace tasks. CI installs the canary channel via `setup-bun`'s `bun-version: canary`.
 
 ## Packages
 

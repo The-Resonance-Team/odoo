@@ -1,0 +1,40 @@
+version: 2
+
+updates:
+  # bun.lock: `npm`/`npm_and_yarn` cannot read it and aborts the job.
+  - package-ecosystem: 'bun'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    groups:
+      minor-and-patch:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+    labels:
+      - 'dependencies'
+      - 'automated'
+    commit-message:
+      prefix: 'chore'
+      prefix-development: 'chore(dev)'
+      include: 'scope'
+    open-pull-requests-limit: 5
+
+  # Action refs stay SHA-pinned; Dependabot updates the SHA and version comment.
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+    groups:
+      minor-and-patch:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+    labels:
+      - 'dependencies'
+      - 'automated'
+    commit-message:
+      prefix: 'ci'
+    open-pull-requests-limit: 5
+
+  # No `packageManager` ecosystem exists: bump bun@x manually with the lockfile.

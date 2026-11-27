@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
+
+permissions:
+  contents: read
+  pull-requests: read
+  id-token: write # OIDC exchange for the Vercel Remote Cache token
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: Detect changed surfaces
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 10
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - name: Check out code (push only; PRs use the Files API)
+        if: github.event_name == 'push'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 2
+      - name: Filter paths
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          predicate-quantifier: 'some-with-excludes'
+          filters: |
+            code:
+              - 'apps/**'
+              - 'packages/**'
+              - 'workers/**'
+              - '.github/workflows/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'turbo.json'
+              - 'tsconfig*.json'
+              - '.oxfmtrc.json'
+              - '.oxlintrc.json'
+              - '.dependency-cruiser.cjs'
+
+  gates:
+    name: Format, lint, boundaries, typecheck, test, build
+    needs: changes
+    if: >-
+      github.event_name == 'push' ||
+      (needs.changes.outputs.code == 'true' && github.event.pull_request.draft != true)
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 25
+    env:
+      TURBO_UI: '0'
+      CI: 'true'
+    steps:
+      - name: Check out code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 2
+      - name: Set up Bun from package.json
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Set up Turborepo remote cache (OIDC)
+        if: vars.TURBO_TEAM != ''
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Format check
+        run: bun run format:check
+      - name: Lint
+        run: bun run lint
+      - name: Deep-module boundaries
+        run: bun run lint:boundaries
+      - name: Typecheck
+        run: bun run check
+      - name: Test (worker cap on self-hosted runner)
+        run: bunx turbo run test --concurrency=1 -- --maxWorkers=2
+      - name: Rust format
+        if: hashFiles('workers/**/Cargo.toml') != ''
+        run: cargo fmt --all --check
+      - name: Rust clippy
+        if: hashFiles('workers/**/Cargo.toml') != ''
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Rust test
+        if: hashFiles('workers/**/Cargo.toml') != ''
+        run: cargo test --workspace
+      - name: Build
+        run: bun run build

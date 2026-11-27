@@ -93,6 +93,7 @@ module.exports = {
     },
   ],
   options: {
+    parser: 'swc',
     doNotFollow: { path: 'node_modules' },
     enhancedResolveOptions: {
       extensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
